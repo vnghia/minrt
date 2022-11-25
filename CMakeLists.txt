@@ -55,6 +55,9 @@ find_library(LIBNVINFER_PLUGIN NAME nvinfer_plugin HINTS ${TENSORRT_LIB_PATH} RE
 find_library(LIBNVPARSERS NAME nvparsers HINTS ${TENSORRT_LIB_PATH} REQUIRED)
 find_path(TENSORRT_INCLUDE_DIR NvInfer.h HINTS ${TENSORRT_INCLUDE_PATH})
 
+# Spdlog
+include(minrt/external/spdlog)
+
 # Final config
 message(STATUS "
 =============> Final Config <===============
