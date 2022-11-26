@@ -70,6 +70,22 @@ class Engine {
 
   bool forward(cudaStream_t stream = 0) { return context_->enqueueV3(stream); }
 
+  auto get_input_size(std::size_t input_index) {
+    return input_sizes_[input_index];
+  }
+
+  auto get_input_binding(std::size_t input_index) {
+    return input_bindings_[input_index];
+  }
+
+  auto get_output_size(std::size_t output_index) {
+    return output_sizes_[output_index];
+  }
+
+  auto get_output_binding(std::size_t output_index) {
+    return output_bindings_[output_index];
+  }
+
  private:
   Engine(Logger& logger, std::unique_ptr<nvinfer1::ICudaEngine>& engine,
          std::unique_ptr<nvinfer1::IExecutionContext>& context,
