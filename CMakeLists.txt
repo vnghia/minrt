@@ -58,6 +58,9 @@ find_path(TENSORRT_INCLUDE_DIR NvInfer.h HINTS ${TENSORRT_INCLUDE_PATH})
 # Spdlog
 include(minrt/external/spdlog)
 
+# Cxxopts
+include(minrt/external/cxxopts)
+
 # Final config
 message(STATUS "
 =============> Final Config <===============
@@ -65,3 +68,34 @@ TensorRT headers: ${TENSORRT_INCLUDE_DIR}
 TensorRT library: ${LIBNVINFER}
 ============================================
 ")
+
+# minrt
+add_library(${PROJECT_NAME}
+  src/minrt.cu
+)
+
+target_compile_features(${PROJECT_NAME} PUBLIC cuda_std_17)
+target_compile_features(${PROJECT_NAME} PUBLIC cxx_std_20)
+
+target_include_directories(${PROJECT_NAME} PUBLIC
+  ${PROJECT_SOURCE_DIR}/include
+  ${TENSORRT_INCLUDE_DIR}
+)
+
+target_link_libraries(${PROJECT_NAME} PUBLIC
+  spdlog::spdlog
+  CUDA::cudart
+  nvinfer
+  nvinfer_plugin
+  nvparsers
+)
+
+# cli
+add_executable(cli
+  src/cli.cpp
+)
+
+target_link_libraries(cli PUBLIC
+  ${PROJECT_NAME}
+  cxxopts::cxxopts
+)
