@@ -19,6 +19,7 @@ int main(int argc, char* argv[]) {
   }
 
   auto engine = Engine::engine_from_path(args["engine"].as<fs::path>());
+  engine.create_device_buffer();
 
   return 0;
 }
