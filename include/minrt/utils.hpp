@@ -74,4 +74,22 @@ inline std::shared_ptr<void> cuda_malloc(size_t size) {
       device_mem, [](void* p) { CUDA_EXIT_IF_ERROR(cudaFree(p)); });
 }
 
+class CudaStream {
+ public:
+  CudaStream(bool non_blocking = true) {
+    if (non_blocking) {
+      CUDA_EXIT_IF_ERROR(
+          cudaStreamCreateWithFlags(&stream_, cudaStreamNonBlocking));
+    } else {
+      CUDA_EXIT_IF_ERROR(cudaStreamCreate(&stream_));
+    }
+  }
+  ~CudaStream() { CUDA_EXIT_IF_ERROR(cudaStreamDestroy(stream_)); }
+
+  operator cudaStream_t() { return stream_; }
+
+ private:
+  cudaStream_t stream_;
+};
+
 }  // namespace minrt
