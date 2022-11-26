@@ -92,4 +92,16 @@ class CudaStream {
   cudaStream_t stream_;
 };
 
+inline void cuda_upload(void* device, const void* host, std::size_t size,
+                        cudaStream_t stream = 0) {
+  CUDA_EXIT_IF_ERROR(cudaMemcpyAsync(
+      device, host, size, cudaMemcpyKind::cudaMemcpyHostToDevice, stream));
+}
+
+inline void cuda_download(void* host, const void* device, std::size_t size,
+                          cudaStream_t stream = 0) {
+  CUDA_EXIT_IF_ERROR(cudaMemcpyAsync(
+      host, device, size, cudaMemcpyKind::cudaMemcpyDeviceToHost, stream));
+}
+
 }  // namespace minrt

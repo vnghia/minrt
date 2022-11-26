@@ -11,6 +11,7 @@
 #include <vector>
 
 #include "NvInfer.h"
+#include "minrt/utils.hpp"
 
 namespace minrt {
 
@@ -42,6 +43,32 @@ class Engine {
   void create_device_buffer(
       const std::unordered_map<std::string, std::shared_ptr<void>>&
           preallocated_buffers = {});
+
+  template <typename T>
+  void upload(const T& container, std::size_t input_index,
+              cudaStream_t stream = 0) {
+    upload(container.data(), input_index, stream);
+  }
+
+  template <typename T>
+  void upload(const T* data, std::size_t input_index, cudaStream_t stream = 0) {
+    cuda_upload(input_bindings_[input_index].get(), data,
+                input_sizes_[input_index], stream);
+  }
+
+  template <typename T>
+  void download(T& container, std::size_t output_index,
+                cudaStream_t stream = 0) {
+    download(container.data(), output_index, stream);
+  }
+
+  template <typename T>
+  void download(T* data, std::size_t output_index, cudaStream_t stream = 0) {
+    cuda_download(data, output_bindings_[output_index].get(),
+                  output_sizes_[output_index], stream);
+  }
+
+  bool forward(cudaStream_t stream = 0) { return context_->enqueueV3(stream); }
 
  private:
   Engine(Logger& logger, std::unique_ptr<nvinfer1::ICudaEngine>& engine,
