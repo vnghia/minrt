@@ -99,3 +99,6 @@ target_link_libraries(cli PUBLIC
   ${PROJECT_NAME}
   cxxopts::cxxopts
 )
+
+# Sample
+add_subdirectory(sample)
