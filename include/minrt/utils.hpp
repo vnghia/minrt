@@ -104,4 +104,18 @@ inline void cuda_download(void* host, const void* device, std::size_t size,
       host, device, size, cudaMemcpyKind::cudaMemcpyDeviceToHost, stream));
 }
 
+class CudaEvent {
+ public:
+  CudaEvent() {
+    CUDA_EXIT_IF_ERROR(
+        cudaEventCreateWithFlags(&event_, cudaEventDisableTiming));
+  }
+  ~CudaEvent() { CUDA_EXIT_IF_ERROR(cudaEventDestroy(event_)); }
+
+  operator cudaEvent_t() { return event_; }
+
+ private:
+  cudaEvent_t event_;
+};
+
 }  // namespace minrt
