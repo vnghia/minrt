@@ -90,15 +90,5 @@ target_link_libraries(${PROJECT_NAME} PUBLIC
   nvparsers
 )
 
-# cli
-add_executable(cli
-  src/cli.cpp
-)
-
-target_link_libraries(cli PUBLIC
-  ${PROJECT_NAME}
-  cxxopts::cxxopts
-)
-
 # Sample
 add_subdirectory(sample)
