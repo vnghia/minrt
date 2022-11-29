@@ -73,6 +73,10 @@ class Engine {
 
   bool forward(cudaStream_t stream = 0) { return context_->enqueueV3(stream); }
 
+  const auto& get_input_name(std::size_t input_index) {
+    return input_names_[input_index];
+  }
+
   auto& get_input_dim(std::size_t input_index) {
     return input_dims_[input_index];
   }
@@ -87,6 +91,10 @@ class Engine {
 
   auto get_input_binding(std::size_t input_index) {
     return input_bindings_[input_index];
+  }
+
+  const auto& get_output_name(std::size_t output_index) {
+    return output_names_[output_index];
   }
 
   auto& get_output_dim(std::size_t output_index) {
