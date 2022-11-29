@@ -100,10 +100,10 @@ Engine::Engine(Logger &logger, std::unique_ptr<nvinfer1::ICudaEngine> &engine,
   }
   spdlog::info("tensor input name {}", input_names_);
   load_io_tensor_info(input_names_, input_dims_, input_dtypes_, input_sizes_,
-                      true);
+                      input_byte_sizes_, true);
   spdlog::info("tensor output name {}", output_names_);
   load_io_tensor_info(output_names_, outputs_dims_, outputs_dtypes_,
-                      output_sizes_, false);
+                      output_sizes_, output_byte_sizes_, false);
 }
 
 Engine Engine::engine_from_path(const fs::path &path, int32_t profile,
@@ -147,10 +147,12 @@ void Engine::load_io_tensor_info(const std::vector<std::string> &names,
                                  std::vector<nvinfer1::Dims> &dims,
                                  std::vector<nvinfer1::DataType> &dtypes,
                                  std::vector<std::size_t> &sizes,
+                                 std::vector<std::size_t> &byte_sizes,
                                  bool is_input) {
   dims.resize(names.size());
   dtypes.resize(names.size());
   sizes.resize(names.size());
+  byte_sizes.resize(names.size());
 
   for (std::size_t i = 0; i < names.size(); ++i) {
     const auto &name = names[i];
@@ -160,7 +162,8 @@ void Engine::load_io_tensor_info(const std::vector<std::string> &names,
                                             nvinfer1::OptProfileSelector::kMAX)
                  : engine_->getTensorShape(name.c_str());
     auto dtype = engine_->getTensorDataType(name.c_str());
-    auto size = get_total_size(dim) * get_dtype_size(dtype);
+    auto size = get_total_size(dim);
+    auto byte_size = size * get_dtype_size(dtype);
 
     spdlog::info("tensor name=\"{}\" dims=[{}] dtype={}", name,
                  fmt::join(dim.d, dim.d + dim.nbDims, ", "),
@@ -169,6 +172,7 @@ void Engine::load_io_tensor_info(const std::vector<std::string> &names,
     dims[i] = dim;
     dtypes[i] = dtype;
     sizes[i] = size;
+    byte_sizes[i] = byte_size;
   }
 }
 
@@ -185,8 +189,8 @@ void Engine::create_input_device_buffer(
     const std::unordered_map<std::string, std::shared_ptr<void>>
         &preallocated_buffers) {
   spdlog::info("create input device buffer");
-  create_device_buffer(use_managed, input_names_, input_sizes_, input_bindings_,
-                       preallocated_buffers);
+  create_device_buffer(use_managed, input_names_, input_byte_sizes_,
+                       input_bindings_, preallocated_buffers);
 }
 
 void Engine::create_output_device_buffer(
@@ -194,13 +198,13 @@ void Engine::create_output_device_buffer(
     const std::unordered_map<std::string, std::shared_ptr<void>>
         &preallocated_buffers) {
   spdlog::info("create output device buffer");
-  create_device_buffer(use_managed, output_names_, output_sizes_,
+  create_device_buffer(use_managed, output_names_, output_byte_sizes_,
                        output_bindings_, preallocated_buffers);
 }
 
 void Engine::create_device_buffer(
     bool use_managed, const std::vector<std::string> &names,
-    std::vector<std::size_t> &sizes,
+    std::vector<std::size_t> &byte_sizes,
     std::vector<std::shared_ptr<void>> &bindings,
     const std::unordered_map<std::string, std::shared_ptr<void>>
         &preallocated_buffers) {
@@ -208,16 +212,16 @@ void Engine::create_device_buffer(
 
   for (std::size_t i = 0; i < names.size(); ++i) {
     const auto &name = names[i];
-    auto size = sizes[i];
+    auto byte_size = byte_sizes[i];
 
     auto preallocated_buffer = preallocated_buffers.find(name);
     if (preallocated_buffer == preallocated_buffers.end()) {
       if (use_managed) {
-        bindings[i] = cuda_malloc_managed(size);
+        bindings[i] = cuda_malloc_managed(byte_size);
       } else {
-        bindings[i] = cuda_malloc(size);
+        bindings[i] = cuda_malloc(byte_size);
       }
-      spdlog::info("tensor name=\"{}\" allocated {} byte", name, size);
+      spdlog::info("tensor name=\"{}\" allocated {} byte", name, byte_size);
     } else {
       bindings[i] = preallocated_buffer->second;
       spdlog::info("tensor name=\"{}\" use allocated buffer at {}", name,

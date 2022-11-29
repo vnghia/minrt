@@ -59,7 +59,7 @@ int main(int argc, char* argv[]) {
   CudaEvent input_consumed_event;
   CudaEvent finish_forward_event;
   engine.set_input_consumed_event(input_consumed_event);
-  auto input_size = engine.get_input_size(0);
+  auto input_size = engine.get_input_byte_size(0);
 
   using forward_stream_data_t =
       std::tuple<float*, const std::vector<unsigned char>*, unsigned long,

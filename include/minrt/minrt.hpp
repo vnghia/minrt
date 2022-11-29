@@ -56,7 +56,7 @@ class Engine {
   template <typename T>
   void upload(const T* data, std::size_t input_index, cudaStream_t stream = 0) {
     cuda_upload(input_bindings_[input_index].get(), data,
-                input_sizes_[input_index], stream);
+                input_byte_sizes_[input_index], stream);
   }
 
   template <typename T>
@@ -68,7 +68,7 @@ class Engine {
   template <typename T>
   void download(T* data, std::size_t output_index, cudaStream_t stream = 0) {
     cuda_download(data, output_bindings_[output_index].get(),
-                  output_sizes_[output_index], stream);
+                  output_byte_sizes_[output_index], stream);
   }
 
   bool forward(cudaStream_t stream = 0) { return context_->enqueueV3(stream); }
@@ -81,6 +81,10 @@ class Engine {
     return input_sizes_[input_index];
   }
 
+  auto get_input_byte_size(std::size_t input_index) {
+    return input_byte_sizes_[input_index];
+  }
+
   auto get_input_binding(std::size_t input_index) {
     return input_bindings_[input_index];
   }
@@ -91,6 +95,10 @@ class Engine {
 
   auto get_output_size(std::size_t output_index) {
     return output_sizes_[output_index];
+  }
+
+  auto get_output_byte_size(std::size_t output_index) {
+    return output_byte_sizes_[output_index];
   }
 
   auto get_output_binding(std::size_t output_index) {
@@ -107,11 +115,12 @@ class Engine {
   void load_io_tensor_info(const std::vector<std::string>& names,
                            std::vector<nvinfer1::Dims>& dims,
                            std::vector<nvinfer1::DataType>& dtypes,
-                           std::vector<std::size_t>& sizes, bool is_input);
+                           std::vector<std::size_t>& sizes,
+                           std::vector<std::size_t>& byte_sizes, bool is_input);
 
   void create_device_buffer(
       bool use_managed, const std::vector<std::string>& names,
-      std::vector<std::size_t>& sizes,
+      std::vector<std::size_t>& byte_sizes,
       std::vector<std::shared_ptr<void>>& bindings,
       const std::unordered_map<std::string, std::shared_ptr<void>>&
           preallocated_buffers);
@@ -125,12 +134,14 @@ class Engine {
   std::vector<nvinfer1::Dims> input_dims_;
   std::vector<nvinfer1::DataType> input_dtypes_;
   std::vector<std::size_t> input_sizes_;
+  std::vector<std::size_t> input_byte_sizes_;
   std::vector<std::shared_ptr<void>> input_bindings_;
 
   std::vector<std::string> output_names_;
   std::vector<nvinfer1::Dims> outputs_dims_;
   std::vector<nvinfer1::DataType> outputs_dtypes_;
   std::vector<std::size_t> output_sizes_;
+  std::vector<std::size_t> output_byte_sizes_;
   std::vector<std::shared_ptr<void>> output_bindings_;
 
   int32_t profile_;
