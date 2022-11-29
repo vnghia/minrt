@@ -246,6 +246,11 @@ void Engine::create_device_buffer(
               "pointer",
               name, byte_size);
           break;
+        case malloc_mode::mapped: {
+          const auto [host_ptr, device_ptr] = cuda_malloc_mapped(byte_size);
+          assign_ptr(i, device_ptrs, device_owned_ptrs, device_ptr);
+          assign_ptr(i, host_ptrs, host_owned_ptrs, host_ptr);
+        } break;
       }
     } else {
       const auto [device_ptr, host_ptr] = std::get<1>(buffer_mode_or_ptr);

@@ -35,7 +35,10 @@ class Engine {
     // using cudaMalloc - has only device_ptr
     device,
     // using cudaMallocManaged - has both device_ptr and host_ptr
-    managed
+    managed,
+    // using cudaHostAlloc with cudaHostAllocMapped | cudaHostAllocPortable -
+    // has both device_ptr and host_ptr
+    mapped
   };
 
   using shared_ptr_or_raw_t = std::variant<std::shared_ptr<void>, void*>;

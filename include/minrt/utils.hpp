@@ -5,6 +5,7 @@
 #include <numeric>
 #include <stdexcept>
 #include <string>
+#include <utility>
 
 #include "NvInfer.h"
 #include "cuda_runtime.h"
@@ -79,6 +80,18 @@ inline std::shared_ptr<void> cuda_malloc_managed(size_t size) {
   CUDA_EXIT_IF_ERROR(cudaMallocManaged(&device_mem, size));
   return std::shared_ptr<void>(
       device_mem, [](void* p) { CUDA_EXIT_IF_ERROR(cudaFree(p)); });
+}
+
+inline std::pair<std::shared_ptr<void>, void*> cuda_malloc_mapped(size_t size) {
+  void* host_mem;
+  CUDA_EXIT_IF_ERROR(cudaHostAlloc(
+      &host_mem, size, cudaHostAllocMapped | cudaHostAllocPortable));
+  void* device_mem;
+  CUDA_EXIT_IF_ERROR(cudaHostGetDevicePointer(&device_mem, host_mem, 0));
+  return std::make_pair(
+      std::shared_ptr<void>(
+          host_mem, [](void* p) { CUDA_EXIT_IF_ERROR(cudaFreeHost(p)); }),
+      device_mem);
 }
 
 class CudaStream {
