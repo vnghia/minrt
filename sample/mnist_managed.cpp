@@ -34,7 +34,9 @@ int main(int argc, char* argv[]) {
   spdlog::info("MNIST data path: {}", args["data_dir"].as<fs::path>().string());
 
   auto engine = Engine::engine_from_path(args["engine"].as<fs::path>());
-  engine.create_device_buffer(true);
+  engine.create_device_buffer(
+      {{engine.get_input_name(0), Engine::malloc_mode::managed},
+       {engine.get_output_name(0), Engine::malloc_mode::managed}});
 
   auto images = ([&]() {
     auto uimages = mnist::read_mnist_image_file(
@@ -51,8 +53,8 @@ int main(int argc, char* argv[]) {
   const auto labels = mnist::read_mnist_label_file(
       args["data_dir"].as<fs::path>() / "train-labels-idx1-ubyte");
 
-  auto image = engine.get_input_binding(0);
-  auto result = static_cast<float*>(engine.get_output_binding(0).get());
+  auto image = engine.get_input_host_ptr(0);
+  auto result = static_cast<float*>(engine.get_output_host_ptr(0));
 
   CudaStream copy_image_stream;
   CudaStream forward_stream;
@@ -89,7 +91,7 @@ int main(int argc, char* argv[]) {
       std::chrono::steady_clock::now();
 
   for (std::size_t i = 0; i < images.size(); ++i) {
-    cudaMemcpyAsync(image.get(), images[i].data(), input_size,
+    cudaMemcpyAsync(image, images[i].data(), input_size,
                     cudaMemcpyKind::cudaMemcpyHostToHost, copy_image_stream);
     engine.forward(forward_stream);
     CUDA_EXIT_IF_ERROR(cudaLaunchHostFunc(forward_stream, forward_stream_fn,

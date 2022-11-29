@@ -33,7 +33,7 @@ int main(int argc, char* argv[]) {
   spdlog::info("MNIST data path: {}", args["data_dir"].as<fs::path>().string());
 
   auto engine = Engine::engine_from_path(args["engine"].as<fs::path>());
-  engine.create_device_buffer(false);
+  engine.create_device_buffer();
 
   auto images = ([&]() {
     auto uimages = mnist::read_mnist_image_file(

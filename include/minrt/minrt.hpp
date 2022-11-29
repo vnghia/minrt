@@ -6,8 +6,10 @@
 #include <filesystem>
 #include <istream>
 #include <memory>
+#include <optional>
 #include <string>
 #include <unordered_map>
+#include <variant>
 #include <vector>
 
 #include "NvInfer.h"
@@ -29,23 +31,33 @@ class Logger : public nvinfer1::ILogger {
 
 class Engine {
  public:
+  enum class malloc_mode {
+    // using cudaMalloc - has only device_ptr
+    device,
+    // using cudaMallocManaged - has both device_ptr and host_ptr
+    managed
+  };
+
+  using shared_ptr_or_raw_t = std::variant<std::shared_ptr<void>, void*>;
+
+  using malloc_mode_or_ptr_t =
+      std::variant<malloc_mode, std::pair<shared_ptr_or_raw_t,
+                                          std::optional<shared_ptr_or_raw_t>>>;
+
   static Engine engine_from_path(const fs::path& path, int32_t profile = 0,
                                  int dla_core = -1);
   static Engine engine_from_stream(std::istream& stream, int32_t profile = 0,
                                    int dla_core = -1);
 
   void create_input_device_buffer(
-      bool use_managed = true,
-      const std::unordered_map<std::string, std::shared_ptr<void>>&
-          preallocated_buffers = {});
+      const std::unordered_map<std::string, malloc_mode_or_ptr_t>&
+          buffer_modes = {});
   void create_output_device_buffer(
-      bool use_managed = true,
-      const std::unordered_map<std::string, std::shared_ptr<void>>&
-          preallocated_buffers = {});
+      const std::unordered_map<std::string, malloc_mode_or_ptr_t>&
+          buffer_modes = {});
   void create_device_buffer(
-      bool use_managed = true,
-      const std::unordered_map<std::string, std::shared_ptr<void>>&
-          preallocated_buffers = {});
+      const std::unordered_map<std::string, malloc_mode_or_ptr_t>&
+          buffer_modes = {});
 
   template <typename T>
   void upload(const T& container, std::size_t input_index,
@@ -55,7 +67,7 @@ class Engine {
 
   template <typename T>
   void upload(const T* data, std::size_t input_index, cudaStream_t stream = 0) {
-    cuda_upload(input_bindings_[input_index].get(), data,
+    cuda_upload(input_device_ptrs_[input_index], data,
                 input_byte_sizes_[input_index], stream);
   }
 
@@ -67,7 +79,7 @@ class Engine {
 
   template <typename T>
   void download(T* data, std::size_t output_index, cudaStream_t stream = 0) {
-    cuda_download(data, output_bindings_[output_index].get(),
+    cuda_download(data, output_device_ptrs_[output_index],
                   output_byte_sizes_[output_index], stream);
   }
 
@@ -89,8 +101,20 @@ class Engine {
     return input_byte_sizes_[input_index];
   }
 
-  auto get_input_binding(std::size_t input_index) {
-    return input_bindings_[input_index];
+  auto get_input_device_ptr(std::size_t input_index) {
+    return input_device_ptrs_[input_index];
+  }
+
+  auto get_input_host_ptr(std::size_t input_index) {
+    return input_host_ptrs_[input_index];
+  }
+
+  auto get_input_device_owned_ptr(std::size_t input_index) {
+    return input_device_owned_ptrs_[input_index];
+  }
+
+  auto get_input_host_owned_ptr(std::size_t input_index) {
+    return input_host_owned_ptrs_[input_index];
   }
 
   const auto& get_output_name(std::size_t output_index) {
@@ -109,8 +133,20 @@ class Engine {
     return output_byte_sizes_[output_index];
   }
 
-  auto get_output_binding(std::size_t output_index) {
-    return output_bindings_[output_index];
+  auto get_output_device_ptr(std::size_t output_index) {
+    return output_device_ptrs_[output_index];
+  }
+
+  auto get_output_host_ptr(std::size_t output_index) {
+    return output_host_ptrs_[output_index];
+  }
+
+  auto get_output_device_owned_ptr(std::size_t output_index) {
+    return output_device_owned_ptrs_[output_index];
+  }
+
+  auto get_output_host_owned_ptr(std::size_t output_index) {
+    return output_host_owned_ptrs_[output_index];
   }
 
   void set_input_consumed_event(cudaEvent_t input_consumed_event);
@@ -127,11 +163,13 @@ class Engine {
                            std::vector<std::size_t>& byte_sizes, bool is_input);
 
   void create_device_buffer(
-      bool use_managed, const std::vector<std::string>& names,
-      std::vector<std::size_t>& byte_sizes,
-      std::vector<std::shared_ptr<void>>& bindings,
-      const std::unordered_map<std::string, std::shared_ptr<void>>&
-          preallocated_buffers);
+      const std::vector<std::string>& names,
+      std::vector<std::size_t>& byte_sizes, std::vector<void*>& device_ptrs,
+      std::vector<void*>& host_ptrs,
+      std::vector<std::shared_ptr<void>>& device_owned_ptrs,
+      std::vector<std::shared_ptr<void>>& host_owned_ptrs,
+      const std::unordered_map<std::string, malloc_mode_or_ptr_t>&
+          buffer_modes);
 
   Logger logger_;
 
@@ -143,14 +181,20 @@ class Engine {
   std::vector<nvinfer1::DataType> input_dtypes_;
   std::vector<std::size_t> input_sizes_;
   std::vector<std::size_t> input_byte_sizes_;
-  std::vector<std::shared_ptr<void>> input_bindings_;
+  std::vector<void*> input_device_ptrs_;
+  std::vector<void*> input_host_ptrs_;
+  std::vector<std::shared_ptr<void>> input_device_owned_ptrs_;
+  std::vector<std::shared_ptr<void>> input_host_owned_ptrs_;
 
   std::vector<std::string> output_names_;
   std::vector<nvinfer1::Dims> outputs_dims_;
   std::vector<nvinfer1::DataType> outputs_dtypes_;
   std::vector<std::size_t> output_sizes_;
   std::vector<std::size_t> output_byte_sizes_;
-  std::vector<std::shared_ptr<void>> output_bindings_;
+  std::vector<void*> output_device_ptrs_;
+  std::vector<void*> output_host_ptrs_;
+  std::vector<std::shared_ptr<void>> output_device_owned_ptrs_;
+  std::vector<std::shared_ptr<void>> output_host_owned_ptrs_;
 
   int32_t profile_;
 };

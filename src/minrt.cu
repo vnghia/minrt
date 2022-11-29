@@ -177,57 +177,91 @@ void Engine::load_io_tensor_info(const std::vector<std::string> &names,
 }
 
 void Engine::create_device_buffer(
-    bool use_managed,
-    const std::unordered_map<std::string, std::shared_ptr<void>>
-        &preallocated_buffers) {
-  create_input_device_buffer(use_managed, preallocated_buffers);
-  create_output_device_buffer(use_managed, preallocated_buffers);
+    const std::unordered_map<std::string, malloc_mode_or_ptr_t> &buffer_modes) {
+  create_input_device_buffer(buffer_modes);
+  create_output_device_buffer(buffer_modes);
 }
 
 void Engine::create_input_device_buffer(
-    bool use_managed,
-    const std::unordered_map<std::string, std::shared_ptr<void>>
-        &preallocated_buffers) {
+    const std::unordered_map<std::string, malloc_mode_or_ptr_t> &buffer_modes) {
   spdlog::info("create input device buffer");
-  create_device_buffer(use_managed, input_names_, input_byte_sizes_,
-                       input_bindings_, preallocated_buffers);
+  create_device_buffer(input_names_, input_byte_sizes_, input_device_ptrs_,
+                       input_host_ptrs_, input_device_owned_ptrs_,
+                       input_host_owned_ptrs_, buffer_modes);
 }
 
 void Engine::create_output_device_buffer(
-    bool use_managed,
-    const std::unordered_map<std::string, std::shared_ptr<void>>
-        &preallocated_buffers) {
+    const std::unordered_map<std::string, malloc_mode_or_ptr_t> &buffer_modes) {
   spdlog::info("create output device buffer");
-  create_device_buffer(use_managed, output_names_, output_byte_sizes_,
-                       output_bindings_, preallocated_buffers);
+  create_device_buffer(output_names_, output_byte_sizes_, output_device_ptrs_,
+                       output_host_ptrs_, output_device_owned_ptrs_,
+                       output_host_owned_ptrs_, buffer_modes);
 }
 
 void Engine::create_device_buffer(
-    bool use_managed, const std::vector<std::string> &names,
-    std::vector<std::size_t> &byte_sizes,
-    std::vector<std::shared_ptr<void>> &bindings,
-    const std::unordered_map<std::string, std::shared_ptr<void>>
-        &preallocated_buffers) {
-  bindings.resize(names.size());
+    const std::vector<std::string> &names, std::vector<std::size_t> &byte_sizes,
+    std::vector<void *> &device_ptrs, std::vector<void *> &host_ptrs,
+    std::vector<std::shared_ptr<void>> &device_owned_ptrs,
+    std::vector<std::shared_ptr<void>> &host_owned_ptrs,
+    const std::unordered_map<std::string, malloc_mode_or_ptr_t> &buffer_modes) {
+  device_ptrs.resize(names.size());
+  host_ptrs.resize(names.size());
+  device_owned_ptrs.resize(names.size());
+  host_owned_ptrs.resize(names.size());
+
+  const auto assign_ptr = [](std::size_t i, std::vector<void *> &ptrs,
+                             std::vector<std::shared_ptr<void>> &owned_ptrs,
+                             const shared_ptr_or_raw_t ptr) {
+    if (std::holds_alternative<std::shared_ptr<void>>(ptr)) {
+      owned_ptrs[i] = std::get<0>(ptr);
+      ptrs[i] = owned_ptrs[i].get();
+    } else {
+      ptrs[i] = std::get<1>(ptr);
+    }
+  };
 
   for (std::size_t i = 0; i < names.size(); ++i) {
     const auto &name = names[i];
     auto byte_size = byte_sizes[i];
 
-    auto preallocated_buffer = preallocated_buffers.find(name);
-    if (preallocated_buffer == preallocated_buffers.end()) {
-      if (use_managed) {
-        bindings[i] = cuda_malloc_managed(byte_size);
-      } else {
-        bindings[i] = cuda_malloc(byte_size);
+    auto buffer_mode_or_ptr_it = buffer_modes.find(name);
+    auto buffer_mode_or_ptr = (buffer_mode_or_ptr_it == buffer_modes.end())
+                                  ? malloc_mode::device
+                                  : buffer_mode_or_ptr_it->second;
+    if (std::holds_alternative<malloc_mode>(buffer_mode_or_ptr)) {
+      auto buffer_mode = std::get<0>(buffer_mode_or_ptr);
+      switch (buffer_mode) {
+        case malloc_mode::device:
+          assign_ptr(i, device_ptrs, device_owned_ptrs, cuda_malloc(byte_size));
+          spdlog::info(
+              "tensor name=\"{}\" allocated {} byte for device pointer", name,
+              byte_size);
+          break;
+        case malloc_mode::managed:
+          assign_ptr(i, device_ptrs, device_owned_ptrs,
+                     cuda_malloc_managed(byte_size));
+          assign_ptr(i, host_ptrs, host_owned_ptrs, device_ptrs[i]);
+          spdlog::info(
+              "tensor name=\"{}\" allocated {} byte for device and host "
+              "pointer",
+              name, byte_size);
+          break;
       }
-      spdlog::info("tensor name=\"{}\" allocated {} byte", name, byte_size);
     } else {
-      bindings[i] = preallocated_buffer->second;
-      spdlog::info("tensor name=\"{}\" use allocated buffer at {}", name,
-                   preallocated_buffer->second.get());
+      const auto [device_ptr, host_ptr] = std::get<1>(buffer_mode_or_ptr);
+      assign_ptr(i, device_ptrs, device_owned_ptrs, device_ptr);
+      spdlog::info(
+          "tensor name=\"{}\" use allocated buffer for device pointer at {}",
+          name, device_ptrs[i]);
+      if (host_ptr) {
+        assign_ptr(i, host_ptrs, host_owned_ptrs, host_ptr.value());
+        spdlog::info(
+            "tensor name=\"{}\" use allocated buffer for host pointer at {}",
+            name, host_ptrs[i]);
+      }
     }
-    context_->setTensorAddress(name.c_str(), bindings[i].get());
+
+    context_->setTensorAddress(name.c_str(), device_ptrs[i]);
     spdlog::info("tensor name=\"{}\" set address to {}", name,
                  context_->getTensorAddress(name.c_str()));
   }
