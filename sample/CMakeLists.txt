@@ -40,3 +40,22 @@ target_link_libraries(mnist-managed PUBLIC
 target_compile_definitions(mnist-managed PRIVATE
   MNIST_DATA_LOCATION="${MNIST_DATA_DIR}"
 )
+
+# mnist_mapped
+add_executable(mnist-mapped
+  mnist_mapped.cpp
+)
+
+target_include_directories(mnist-mapped PUBLIC
+  ${MNIST_INCLUDE_DIR}
+)
+
+target_link_libraries(mnist-mapped PUBLIC
+  ${PROJECT_NAME}
+  cxxopts::cxxopts
+  spdlog::spdlog
+)
+
+target_compile_definitions(mnist-mapped PRIVATE
+  MNIST_DATA_LOCATION="${MNIST_DATA_DIR}"
+)
