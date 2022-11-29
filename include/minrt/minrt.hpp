@@ -35,12 +35,15 @@ class Engine {
                                    int dla_core = -1);
 
   void create_input_device_buffer(
+      bool use_managed = true,
       const std::unordered_map<std::string, std::shared_ptr<void>>&
           preallocated_buffers = {});
   void create_output_device_buffer(
+      bool use_managed = true,
       const std::unordered_map<std::string, std::shared_ptr<void>>&
           preallocated_buffers = {});
   void create_device_buffer(
+      bool use_managed = true,
       const std::unordered_map<std::string, std::shared_ptr<void>>&
           preallocated_buffers = {});
 
@@ -86,13 +89,16 @@ class Engine {
     return output_bindings_[output_index];
   }
 
+  void set_input_consumed_event(cudaEvent_t input_consumed_event);
+
  private:
   Engine(Logger& logger, std::unique_ptr<nvinfer1::ICudaEngine>& engine,
          std::unique_ptr<nvinfer1::IExecutionContext>& context,
          int32_t profile);
 
   void create_device_buffer(
-      const std::vector<std::string>& names, std::vector<nvinfer1::Dims>& dims,
+      bool use_managed, const std::vector<std::string>& names,
+      std::vector<nvinfer1::Dims>& dims,
       std::vector<nvinfer1::DataType>& dtypes, std::vector<std::size_t>& sizes,
       std::vector<std::shared_ptr<void>>& bindings,
       const std::unordered_map<std::string, std::shared_ptr<void>>&

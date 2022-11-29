@@ -74,6 +74,13 @@ inline std::shared_ptr<void> cuda_malloc(size_t size) {
       device_mem, [](void* p) { CUDA_EXIT_IF_ERROR(cudaFree(p)); });
 }
 
+inline std::shared_ptr<void> cuda_malloc_managed(size_t size) {
+  void* device_mem;
+  CUDA_EXIT_IF_ERROR(cudaMallocManaged(&device_mem, size));
+  return std::shared_ptr<void>(
+      device_mem, [](void* p) { CUDA_EXIT_IF_ERROR(cudaFree(p)); });
+}
+
 class CudaStream {
  public:
   CudaStream(bool non_blocking = true) {

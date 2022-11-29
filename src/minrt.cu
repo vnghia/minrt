@@ -140,32 +140,37 @@ Engine Engine::engine_from_stream(std::istream &stream, int32_t profile,
 }
 
 void Engine::create_device_buffer(
+    bool use_managed,
     const std::unordered_map<std::string, std::shared_ptr<void>>
         &preallocated_buffers) {
-  create_input_device_buffer(preallocated_buffers);
-  create_output_device_buffer(preallocated_buffers);
+  create_input_device_buffer(use_managed, preallocated_buffers);
+  create_output_device_buffer(use_managed, preallocated_buffers);
 }
 
 void Engine::create_input_device_buffer(
+    bool use_managed,
     const std::unordered_map<std::string, std::shared_ptr<void>>
         &preallocated_buffers) {
   spdlog::info("create input device buffer");
-  create_device_buffer(input_names_, input_dims_, input_dtypes_, input_sizes_,
-                       input_bindings_, preallocated_buffers, true);
+  create_device_buffer(use_managed, input_names_, input_dims_, input_dtypes_,
+                       input_sizes_, input_bindings_, preallocated_buffers,
+                       true);
 }
 
 void Engine::create_output_device_buffer(
+    bool use_managed,
     const std::unordered_map<std::string, std::shared_ptr<void>>
         &preallocated_buffers) {
   spdlog::info("create output device buffer");
-  create_device_buffer(output_names_, outputs_dims_, outputs_dtypes_,
-                       output_sizes_, output_bindings_, preallocated_buffers,
-                       false);
+  create_device_buffer(use_managed, output_names_, outputs_dims_,
+                       outputs_dtypes_, output_sizes_, output_bindings_,
+                       preallocated_buffers, false);
 }
 
 void Engine::create_device_buffer(
-    const std::vector<std::string> &names, std::vector<nvinfer1::Dims> &dims,
-    std::vector<nvinfer1::DataType> &dtypes, std::vector<std::size_t> &sizes,
+    bool use_managed, const std::vector<std::string> &names,
+    std::vector<nvinfer1::Dims> &dims, std::vector<nvinfer1::DataType> &dtypes,
+    std::vector<std::size_t> &sizes,
     std::vector<std::shared_ptr<void>> &bindings,
     const std::unordered_map<std::string, std::shared_ptr<void>>
         &preallocated_buffers,
@@ -191,7 +196,11 @@ void Engine::create_device_buffer(
 
     auto preallocated_buffer = preallocated_buffers.find(name);
     if (preallocated_buffer == preallocated_buffers.end()) {
-      bindings[i] = cuda_malloc(size);
+      if (use_managed) {
+        bindings[i] = cuda_malloc_managed(size);
+      } else {
+        bindings[i] = cuda_malloc(size);
+      }
       spdlog::info("tensor name=\"{}\" allocated {} byte", name, size);
     } else {
       bindings[i] = preallocated_buffer->second;
@@ -206,6 +215,10 @@ void Engine::create_device_buffer(
     dtypes[i] = dtype;
     sizes[i] = size;
   }
+}
+
+void Engine::set_input_consumed_event(cudaEvent_t input_consumed_event) {
+  context_->setInputConsumedEvent(input_consumed_event);
 }
 
 }  // namespace minrt
