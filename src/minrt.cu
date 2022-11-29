@@ -99,7 +99,11 @@ Engine::Engine(Logger &logger, std::unique_ptr<nvinfer1::ICudaEngine> &engine,
     }
   }
   spdlog::info("tensor input name {}", input_names_);
+  load_io_tensor_info(input_names_, input_dims_, input_dtypes_, input_sizes_,
+                      true);
   spdlog::info("tensor output name {}", output_names_);
+  load_io_tensor_info(output_names_, outputs_dims_, outputs_dtypes_,
+                      output_sizes_, false);
 }
 
 Engine Engine::engine_from_path(const fs::path &path, int32_t profile,
@@ -139,46 +143,14 @@ Engine Engine::engine_from_stream(std::istream &stream, int32_t profile,
   return Engine(logger, engine, context, profile);
 }
 
-void Engine::create_device_buffer(
-    bool use_managed,
-    const std::unordered_map<std::string, std::shared_ptr<void>>
-        &preallocated_buffers) {
-  create_input_device_buffer(use_managed, preallocated_buffers);
-  create_output_device_buffer(use_managed, preallocated_buffers);
-}
-
-void Engine::create_input_device_buffer(
-    bool use_managed,
-    const std::unordered_map<std::string, std::shared_ptr<void>>
-        &preallocated_buffers) {
-  spdlog::info("create input device buffer");
-  create_device_buffer(use_managed, input_names_, input_dims_, input_dtypes_,
-                       input_sizes_, input_bindings_, preallocated_buffers,
-                       true);
-}
-
-void Engine::create_output_device_buffer(
-    bool use_managed,
-    const std::unordered_map<std::string, std::shared_ptr<void>>
-        &preallocated_buffers) {
-  spdlog::info("create output device buffer");
-  create_device_buffer(use_managed, output_names_, outputs_dims_,
-                       outputs_dtypes_, output_sizes_, output_bindings_,
-                       preallocated_buffers, false);
-}
-
-void Engine::create_device_buffer(
-    bool use_managed, const std::vector<std::string> &names,
-    std::vector<nvinfer1::Dims> &dims, std::vector<nvinfer1::DataType> &dtypes,
-    std::vector<std::size_t> &sizes,
-    std::vector<std::shared_ptr<void>> &bindings,
-    const std::unordered_map<std::string, std::shared_ptr<void>>
-        &preallocated_buffers,
-    bool is_input) {
+void Engine::load_io_tensor_info(const std::vector<std::string> &names,
+                                 std::vector<nvinfer1::Dims> &dims,
+                                 std::vector<nvinfer1::DataType> &dtypes,
+                                 std::vector<std::size_t> &sizes,
+                                 bool is_input) {
   dims.resize(names.size());
   dtypes.resize(names.size());
   sizes.resize(names.size());
-  bindings.resize(names.size());
 
   for (std::size_t i = 0; i < names.size(); ++i) {
     const auto &name = names[i];
@@ -193,6 +165,50 @@ void Engine::create_device_buffer(
     spdlog::info("tensor name=\"{}\" dims=[{}] dtype={}", name,
                  fmt::join(dim.d, dim.d + dim.nbDims, ", "),
                  dtype_to_string(dtype));
+
+    dims[i] = dim;
+    dtypes[i] = dtype;
+    sizes[i] = size;
+  }
+}
+
+void Engine::create_device_buffer(
+    bool use_managed,
+    const std::unordered_map<std::string, std::shared_ptr<void>>
+        &preallocated_buffers) {
+  create_input_device_buffer(use_managed, preallocated_buffers);
+  create_output_device_buffer(use_managed, preallocated_buffers);
+}
+
+void Engine::create_input_device_buffer(
+    bool use_managed,
+    const std::unordered_map<std::string, std::shared_ptr<void>>
+        &preallocated_buffers) {
+  spdlog::info("create input device buffer");
+  create_device_buffer(use_managed, input_names_, input_sizes_, input_bindings_,
+                       preallocated_buffers);
+}
+
+void Engine::create_output_device_buffer(
+    bool use_managed,
+    const std::unordered_map<std::string, std::shared_ptr<void>>
+        &preallocated_buffers) {
+  spdlog::info("create output device buffer");
+  create_device_buffer(use_managed, output_names_, output_sizes_,
+                       output_bindings_, preallocated_buffers);
+}
+
+void Engine::create_device_buffer(
+    bool use_managed, const std::vector<std::string> &names,
+    std::vector<std::size_t> &sizes,
+    std::vector<std::shared_ptr<void>> &bindings,
+    const std::unordered_map<std::string, std::shared_ptr<void>>
+        &preallocated_buffers) {
+  bindings.resize(names.size());
+
+  for (std::size_t i = 0; i < names.size(); ++i) {
+    const auto &name = names[i];
+    auto size = sizes[i];
 
     auto preallocated_buffer = preallocated_buffers.find(name);
     if (preallocated_buffer == preallocated_buffers.end()) {
@@ -210,10 +226,6 @@ void Engine::create_device_buffer(
     context_->setTensorAddress(name.c_str(), bindings[i].get());
     spdlog::info("tensor name=\"{}\" set address to {}", name,
                  context_->getTensorAddress(name.c_str()));
-
-    dims[i] = dim;
-    dtypes[i] = dtype;
-    sizes[i] = size;
   }
 }
 

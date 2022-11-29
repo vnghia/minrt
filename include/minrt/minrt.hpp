@@ -104,14 +104,17 @@ class Engine {
          std::unique_ptr<nvinfer1::IExecutionContext>& context,
          int32_t profile);
 
+  void load_io_tensor_info(const std::vector<std::string>& names,
+                           std::vector<nvinfer1::Dims>& dims,
+                           std::vector<nvinfer1::DataType>& dtypes,
+                           std::vector<std::size_t>& sizes, bool is_input);
+
   void create_device_buffer(
       bool use_managed, const std::vector<std::string>& names,
-      std::vector<nvinfer1::Dims>& dims,
-      std::vector<nvinfer1::DataType>& dtypes, std::vector<std::size_t>& sizes,
+      std::vector<std::size_t>& sizes,
       std::vector<std::shared_ptr<void>>& bindings,
       const std::unordered_map<std::string, std::shared_ptr<void>>&
-          preallocated_buffers,
-      bool is_input);
+          preallocated_buffers);
 
   Logger logger_;
 
