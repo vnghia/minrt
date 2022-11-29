@@ -2,6 +2,7 @@
 #include <cstddef>
 #include <filesystem>
 #include <iostream>
+#include <tuple>
 #include <vector>
 
 #include "cxxopts.hpp"
@@ -33,7 +34,7 @@ int main(int argc, char* argv[]) {
   spdlog::info("MNIST data path: {}", args["data_dir"].as<fs::path>().string());
 
   auto engine = Engine::engine_from_path(args["engine"].as<fs::path>());
-  engine.create_device_buffer(false);
+  engine.create_device_buffer(true);
 
   auto images = ([&]() {
     auto uimages = mnist::read_mnist_image_file(
@@ -50,20 +51,51 @@ int main(int argc, char* argv[]) {
   const auto labels = mnist::read_mnist_label_file(
       args["data_dir"].as<fs::path>() / "train-labels-idx1-ubyte");
 
-  std::vector<float> result(num_classes);
+  auto image = engine.get_input_binding(0);
+  auto result = static_cast<float*>(engine.get_output_binding(0).get());
+
+  CudaStream copy_image_stream;
+  CudaStream forward_stream;
+  CudaEvent input_consumed_event;
+  CudaEvent finish_forward_event;
+  engine.set_input_consumed_event(input_consumed_event);
+  auto input_size = engine.get_input_size(0);
+
+  using forward_stream_data_t =
+      std::tuple<float*, const std::vector<unsigned char>*, unsigned long,
+                 unsigned long*>;
+
+  auto forward_stream_fn = [](void* raw_data) {
+    auto* pdata = static_cast<forward_stream_data_t*>(raw_data);
+    auto& data = *pdata;
+    auto result = std::get<0>(data);
+    auto digit =
+        std::distance(result, std::max_element(result, result + num_classes));
+    if (digit == (*std::get<1>(data))[std::get<2>(data)])
+      ++(*std::get<3>(data));
+  };
+
   std::size_t correct_count = 0;
+
+  std::vector<forward_stream_data_t> forward_stream_data(images.size());
+  for (std::size_t i = 0; i < images.size(); ++i) {
+    std::get<0>(forward_stream_data[i]) = result;
+    std::get<1>(forward_stream_data[i]) = &labels;
+    std::get<2>(forward_stream_data[i]) = i;
+    std::get<3>(forward_stream_data[i]) = &correct_count;
+  }
 
   std::chrono::steady_clock::time_point begin =
       std::chrono::steady_clock::now();
 
   for (std::size_t i = 0; i < images.size(); ++i) {
-    engine.upload(images[i], 0);
-    engine.forward();
-    engine.download(result, 0);
-
-    auto digit = std::distance(result.begin(),
-                               std::max_element(result.begin(), result.end()));
-    if (digit == labels[i]) ++correct_count;
+    cudaMemcpyAsync(image.get(), images[i].data(), input_size,
+                    cudaMemcpyKind::cudaMemcpyHostToHost, copy_image_stream);
+    engine.forward(forward_stream);
+    CUDA_EXIT_IF_ERROR(cudaLaunchHostFunc(forward_stream, forward_stream_fn,
+                                          &forward_stream_data[i]));
+    CUDA_EXIT_IF_ERROR(
+        cudaStreamWaitEvent(copy_image_stream, input_consumed_event));
   }
 
   std::chrono::steady_clock::time_point end = std::chrono::steady_clock::now();
