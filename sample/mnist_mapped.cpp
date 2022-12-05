@@ -87,27 +87,19 @@ int main(int argc, char* argv[]) {
     std::get<3>(forward_stream_data[i]) = &correct_count;
   }
 
-  std::chrono::steady_clock::time_point begin =
-      std::chrono::steady_clock::now();
-
-  for (std::size_t i = 0; i < images.size(); ++i) {
-    cudaMemcpyAsync(image, images[i].data(), input_size,
-                    cudaMemcpyKind::cudaMemcpyHostToHost, copy_image_stream);
-    engine.forward(forward_stream);
-    CUDA_EXIT_IF_ERROR(cudaLaunchHostFunc(forward_stream, forward_stream_fn,
-                                          &forward_stream_data[i]));
-    CUDA_EXIT_IF_ERROR(
-        cudaStreamWaitEvent(copy_image_stream, input_consumed_event));
-  }
-
-  std::chrono::steady_clock::time_point end = std::chrono::steady_clock::now();
+  MINRT_EXECUTION_TIMER(
+      "MNIST", for (std::size_t i = 0; i < images.size(); ++i) {
+        cudaMemcpyAsync(image, images[i].data(), input_size,
+                        cudaMemcpyKind::cudaMemcpyHostToHost,
+                        copy_image_stream);
+        engine.forward(forward_stream);
+        CUDA_EXIT_IF_ERROR(cudaLaunchHostFunc(forward_stream, forward_stream_fn,
+                                              &forward_stream_data[i]));
+        CUDA_EXIT_IF_ERROR(
+            cudaStreamWaitEvent(copy_image_stream, input_consumed_event));
+      });
 
   spdlog::info("MNIST accuracy: {}", correct_count * 1.f / images.size());
-  spdlog::info(
-      "MNIST running time: {}s",
-      (std::chrono::duration_cast<std::chrono::microseconds>(end - begin)
-           .count()) /
-          1000000.0);
 
   return 0;
 }

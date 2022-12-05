@@ -1,5 +1,6 @@
 #pragma once
 
+#include <chrono>
 #include <cstddef>
 #include <memory>
 #include <numeric>
@@ -22,6 +23,21 @@ namespace minrt {
                        __LINE__);                                         \
       exit(error_code);                                                   \
     }                                                                     \
+  }
+#endif
+
+#ifndef MINRT_EXECUTION_TIMER
+#define MINRT_EXECUTION_TIMER(tag, call_str)                                \
+  {                                                                         \
+    std::chrono::steady_clock::time_point begin =                           \
+        std::chrono::steady_clock::now();                                   \
+    call_str;                                                               \
+    std::chrono::steady_clock::time_point end =                             \
+        std::chrono::steady_clock::now();                                   \
+    spdlog::info(                                                           \
+        "{} took {}ms", tag,                                                \
+        (std::chrono::duration_cast<std::chrono::milliseconds>(end - begin) \
+             .count()));                                                    \
   }
 #endif
 

@@ -53,27 +53,18 @@ int main(int argc, char* argv[]) {
   std::vector<float> result(num_classes);
   std::size_t correct_count = 0;
 
-  std::chrono::steady_clock::time_point begin =
-      std::chrono::steady_clock::now();
+  MINRT_EXECUTION_TIMER(
+      "MNIST", for (std::size_t i = 0; i < images.size(); ++i) {
+        engine.upload(images[i], 0);
+        engine.forward();
+        engine.download(result, 0);
 
-  for (std::size_t i = 0; i < images.size(); ++i) {
-    engine.upload(images[i], 0);
-    engine.forward();
-    engine.download(result, 0);
-
-    auto digit = std::distance(result.begin(),
-                               std::max_element(result.begin(), result.end()));
-    if (digit == labels[i]) ++correct_count;
-  }
-
-  std::chrono::steady_clock::time_point end = std::chrono::steady_clock::now();
+        auto digit = std::distance(
+            result.begin(), std::max_element(result.begin(), result.end()));
+        if (digit == labels[i]) ++correct_count;
+      });
 
   spdlog::info("MNIST accuracy: {}", correct_count * 1.f / images.size());
-  spdlog::info(
-      "MNIST running time: {}s",
-      (std::chrono::duration_cast<std::chrono::microseconds>(end - begin)
-           .count()) /
-          1000000.0);
 
   return 0;
 }
