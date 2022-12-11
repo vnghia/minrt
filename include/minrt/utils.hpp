@@ -6,6 +6,7 @@
 #include <numeric>
 #include <stdexcept>
 #include <string>
+#include <type_traits>
 #include <utility>
 
 #include "NvInfer.h"
@@ -88,7 +89,7 @@ template <typename T = void>
 inline std::shared_ptr<T> cuda_malloc(size_t size) {
   void* device_mem;
   CUDA_EXIT_IF_ERROR(cudaMalloc(&device_mem, size));
-  return std::shared_ptr<T>(static_cast<T*>(device_mem),
+  return std::shared_ptr<T>(static_cast<std::remove_extent_t<T>*>(device_mem),
                             [](void* p) { CUDA_EXIT_IF_ERROR(cudaFree(p)); });
 }
 
@@ -96,7 +97,7 @@ template <typename T = void>
 inline std::shared_ptr<T> cuda_malloc_managed(size_t size) {
   void* device_mem;
   CUDA_EXIT_IF_ERROR(cudaMallocManaged(&device_mem, size));
-  return std::shared_ptr<T>(static_cast<T*>(device_mem),
+  return std::shared_ptr<T>(static_cast<std::remove_extent_t<T>*>(device_mem),
                             [](void* p) { CUDA_EXIT_IF_ERROR(cudaFree(p)); });
 }
 
@@ -108,9 +109,8 @@ inline std::pair<std::shared_ptr<T>, T*> cuda_malloc_mapped(size_t size) {
   void* device_mem;
   CUDA_EXIT_IF_ERROR(cudaHostGetDevicePointer(&device_mem, host_mem, 0));
   return std::make_pair(
-      std::shared_ptr<void>(
-          static_cast<T*>(host_mem),
-          [](void* p) { CUDA_EXIT_IF_ERROR(cudaFreeHost(p)); }),
+      std::shared_ptr<T>(static_cast<std::remove_extent_t<T>*>(host_mem),
+                         [](void* p) { CUDA_EXIT_IF_ERROR(cudaFreeHost(p)); }),
       static_cast<T*>(device_mem));
 }
 
