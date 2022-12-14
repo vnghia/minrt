@@ -61,6 +61,9 @@ include(minrt/external/spdlog)
 # Cxxopts
 include(minrt/external/cxxopts)
 
+# Libnpy
+include(minrt/external/libnpy)
+
 # Final config
 message(STATUS "
 =============> Final Config <===============
@@ -80,6 +83,7 @@ target_compile_features(${PROJECT_NAME} PUBLIC cxx_std_20)
 target_include_directories(${PROJECT_NAME} PUBLIC
   ${PROJECT_SOURCE_DIR}/include
   ${TENSORRT_INCLUDE_DIR}
+  ${libnpy_SOURCE_DIR}/include
 )
 
 target_link_libraries(${PROJECT_NAME} PUBLIC
