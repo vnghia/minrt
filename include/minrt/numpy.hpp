@@ -11,6 +11,8 @@
 
 namespace minrt {
 
+namespace fs = std::filesystem;
+
 template <typename T>
 void save_npy(std::ostream &stream, unsigned int n_dims,
               const unsigned long shape[], const T *data,
@@ -27,8 +29,9 @@ void save_npy(std::ostream &stream, unsigned int n_dims,
 }
 
 template <typename T>
-void save_npy(fs::path &path, unsigned int n_dims, const unsigned long shape[],
-              const T *data, bool fortran_order = false) {
+void save_npy(const fs::path &path, unsigned int n_dims,
+              const unsigned long shape[], const T *data,
+              bool fortran_order = false) {
   std::ofstream stream(path, std::ofstream::binary);
   stream.exceptions(std::ofstream::badbit);
   save_npy(stream, n_dims, shape, data, fortran_order);
@@ -55,7 +58,7 @@ void load_npy(std::istream &stream, std::vector<unsigned long> &shape,
 }
 
 template <typename T>
-void load_npy(fs::path &path, std::vector<unsigned long> &shape,
+void load_npy(const fs::path &path, std::vector<unsigned long> &shape,
               std::vector<T> &data, bool fortran_order = false) {
   std::ifstream stream(path, std::ifstream::binary);
   stream.exceptions(std::ofstream::badbit);
